@@ -82,9 +82,12 @@ COPY kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
 
 # ------------ KDE Plasma xstartup (dbus-launch -> startplasma-x11) ------------
 COPY xstartup.plasma /opt/kasmvnc/xstartup.plasma
-RUN chmod +x /opt/kasmvnc/xstartup.plasma \
-    && mkdir -p /home/${USERNAME}/.vnc \
-    && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.vnc /opt/kasmvnc
+RUN set -eux; \
+    chmod +x /opt/kasmvnc/xstartup.plasma; \
+    mkdir -p /home/${USERNAME}/.vnc; \
+    uid="$(id -u ${USERNAME})"; \
+    gid="$(id -g ${USERNAME})"; \
+    chown -R "${uid}:${gid}" /home/${USERNAME}/.vnc /opt/kasmvnc
 
 # ------------ Entrypoint: create KasmVNC user + run vncserver -fg ------------
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
