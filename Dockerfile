@@ -30,13 +30,15 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
  && chmod 0440 /etc/sudoers.d/99-${USERNAME}
 
 # Install KasmVNC from official release packages
-# Docs: select package for your distro, apt install it, and add user to ssl-cert. [2](https://docs.linuxserver.io/images/docker-kasm/)
+ARG KASMVNC_DEB_URL
+# sanity fallback (optional): can point to 'latest' noble .deb if you want a default
+# ARG KASMVNC_DEB_URL=https://github.com/kasmtech/KasmVNC/releases/download/v1.4.0/kasmvncserver_noble_1.4.0_amd64.deb
+
 RUN set -eux; \
-    ARCH=amd64; \
-    DEB_URL="https://github.com/kasmtech/KasmVNC/releases/download/v${KASMVNC_VERSION}/kasmvncserver_${KASMVNC_DISTRO}_${KASMVNC_VERSION}_${ARCH}.deb"; \
     apt-get update; \
-    apt-get install -y --no-install-recommends openssl; \
-    wget -O /tmp/kasmvnc.deb "$DEB_URL"; \
+    apt-get install -y --no-install-recommends openssl ca-certificates wget; \
+    test -n "$KASMVNC_DEB_URL"; \
+    wget -O /tmp/kasmvnc.deb "$KASMVNC_DEB_URL"; \
     apt-get install -y /tmp/kasmvnc.deb; \
     rm -f /tmp/kasmvnc.deb; \
     adduser ${USERNAME} ssl-cert; \
