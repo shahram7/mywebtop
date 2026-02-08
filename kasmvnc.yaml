@@ -3,13 +3,16 @@ network:
   interface: 0.0.0.0
   websocket_port: 8444
   ssl:
-    require_ssl: false
+    require_ssl: true
+
 desktop:
   resolution:
     width: 1920
     height: 1080
   allow_resize: true
+
 runtime_configuration:
   allow_client_to_override_kasm_server_settings: true
+
 logging:
   level: 30
