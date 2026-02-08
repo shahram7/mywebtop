@@ -4,5 +4,4 @@ unset DBUS_SESSION_BUS_ADDRESS
 
 [ -r "$HOME/.Xresources" ] && xrdb "$HOME/.Xresources"
 
-# Start KDE Plasma (X11) inside the VNC session
 exec dbus-launch --exit-with-session startplasma-x11
