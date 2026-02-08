@@ -1,5 +1,6 @@
-# Ubuntu 24.04 (Noble) + KDE Plasma + KasmVNC
-# KasmVNC install method follows upstream docs: download the proper .deb from Releases and apt-install it.  [1](https://www.reddit.com/r/kasmweb/comments/15nl1d6/lsio_images_stuck_on/)
+# Ubuntu 24.04 (Noble) + KDE Plasma + KasmVNC (TLS enabled)
+# KasmVNC install method follows upstream docs: download the proper .deb from Releases, then apt-install it.
+
 FROM ubuntu:24.04
 
 # ------------ Base environment ------------
@@ -8,8 +9,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LC_ALL=en_US.UTF-8
 
 # ------------ Build-time args ------------
-# Your workflow should set KASMVNC_DEB_URL dynamically by querying the latest release assets.
-# See: /repos/kasmtech/KasmVNC/releases (pick kasmvncserver_noble_*_amd64.deb).  [1](https://www.reddit.com/r/kasmweb/comments/15nl1d6/lsio_images_stuck_on/)
+# Your workflow resolves KASMVNC_DEB_URL dynamically (latest noble/amd64 .deb).
 ARG KASMVNC_DEB_URL
 ARG USERNAME=abc
 ARG USER_UID=1000
@@ -27,24 +27,45 @@ RUN set -eux; \
     locale-gen en_US.UTF-8; \
     rm -rf /var/lib/apt/lists/*
 
-# ------------ Idempotent user/group creation (avoids GID 1000 collision) ------------
+# ------------ Idempotent user/group creation (handles occupied UID/GID) ------------
+# - Reuse existing group for desired GID or create it.
+# - If desired UID is taken, pick the first free UID >=1000.
+# - Create (or adjust) the user accordingly and enable passwordless sudo.
 RUN set -eux; \
-  if getent group "${USER_GID}" >/dev/null; then \
-    EXISTING_GROUP="$(getent group "${USER_GID}" | cut -d: -f1)"; \
+  desired_gid="${USER_GID}"; \
+  desired_uid="${USER_UID}"; \
+  # Ensure a group exists with desired GID (reuse its name if it already exists)
+  if getent group "${desired_gid}" >/dev/null; then \
+    group_name="$(getent group "${desired_gid}" | cut -d: -f1)"; \
   else \
-    groupadd --gid "${USER_GID}" "${USERNAME}"; \
-    EXISTING_GROUP="${USERNAME}"; \
+    group_name="${USERNAME}"; \
+    if ! groupadd --gid "${desired_gid}" "${group_name}"; then \
+      # If GID is taken but getent failed for some reason, fall back to creating group without a fixed GID
+      group_name="${USERNAME}"; \
+      groupadd "${group_name}"; \
+      desired_gid="$(getent group "${group_name}" | cut -d: -f3)"; \
+    fi; \
   fi; \
+  # If the desired UID exists, find the first free UID >=1000
+  if getent passwd "${desired_uid}" >/dev/null; then \
+    free_uid="$(awk -F: 'BEGIN{min=1000} $3>=min{u[$3]=1} END{for(i=min;i<65534;i++){if(!u[i]){print i; exit}}}' /etc/passwd)"; \
+    desired_uid="${free_uid}"; \
+  fi; \
+  # Create or modify the user to match desired uid/gid
   if id -u "${USERNAME}" >/dev/null 2>&1; then \
-    usermod -g "${USER_GID}" "${USERNAME}" || true; \
+    usermod -u "${desired_uid}" -g "${desired_gid}" "${USERNAME}" || true; \
+    # Ensure home exists and ownership is correct
+    mkdir -p "/home/${USERNAME}" && chown -R "${desired_uid}:${desired_gid}" "/home/${USERNAME}"; \
   else \
-    useradd --uid "${USER_UID}" --gid "${USER_GID}" --create-home --shell /bin/bash "${USERNAME}"; \
+    useradd --uid "${desired_uid}" --gid "${desired_gid}" --create-home --shell /bin/bash "${USERNAME}"; \
   fi; \
-  echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/99-${USERNAME}; \
-  chmod 0440 /etc/sudoers.d/99-${USERNAME}
+  echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/99-${USERNAME}"; \
+  chmod 0440 "/etc/sudoers.d/99-${USERNAME}"; \
+  # Debug info (optional): show resulting ids
+  echo "Created/updated user: ${USERNAME} (uid=$(id -u ${USERNAME}), gid=$(id -g ${USERNAME}))"
 
 # ------------ Install KasmVNC from upstream release ------------
-# Official doc flow (Debian/Ubuntu): wget the .deb from Releases and apt-get install it, then add the user to ssl-cert.  [1](https://www.reddit.com/r/kasmweb/comments/15nl1d6/lsio_images_stuck_on/)
+# Official doc flow (Debian/Ubuntu): download the .deb for your distro from Releases and apt-install it.
 RUN set -eux; \
     test -n "$KASMVNC_DEB_URL"; \
     apt-get update; \
@@ -56,19 +77,16 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 # ------------ KasmVNC server config ------------
-# KasmVNC is YAML-configured; server-level file lives at /etc/kasmvnc/kasmvnc.yaml.  [4](https://proot-me.github.io/)
-# We keep TLS enabled (require_ssl: true). On Ubuntu, default "snakeoil" certs are used automatically.
+# TLS stays enabled. On Ubuntu, default "snakeoil" certs are used if you don't supply your own.
 COPY kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
 
 # ------------ KDE Plasma xstartup (dbus-launch -> startplasma-x11) ------------
-# Starting Plasma this way is reliable in VNC/Xvnc headless sessions.  [2](https://www.kasmweb.com/kasmvnc/docs/master/index.html)
 COPY xstartup.plasma /opt/kasmvnc/xstartup.plasma
 RUN chmod +x /opt/kasmvnc/xstartup.plasma \
     && mkdir -p /home/${USERNAME}/.vnc \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.vnc /opt/kasmvnc
 
 # ------------ Entrypoint: create KasmVNC user + run vncserver -fg ------------
-# vncserver -fg keeps the server in the foreground, ideal for containers.  [3](https://github.com/kasmtech/KasmVNC)
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
