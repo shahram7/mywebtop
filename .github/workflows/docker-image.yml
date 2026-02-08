@@ -14,7 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
       id-token: write
 
     steps:
@@ -33,16 +32,24 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Ensure curl & jq are installed
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl jq
+
       - name: Extract Docker metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ env.IMAGE_NAME }}
+          images: ${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
             type=sha
+          labels: |
+            org.opencontainers.image.title=mywebtop
+            org.opencontainers.image.description=My own version of Webtop with Ubuntu KDE and KasmVNC (Not Selkies)
 
       - name: Resolve latest KasmVNC .deb (Ubuntu Noble amd64)
         id: kasmvnc
@@ -50,13 +57,13 @@ jobs:
           set -euo pipefail
           # Query the latest release
           json="$(curl -s https://api.github.com/repos/kasmtech/KasmVNC/releases/latest)"
-          # Pick the Noble amd64 deb asset
-          url=$(echo "$json" | jq -r '.assets[].browser_download_url' | grep 'kasmvncserver_noble_.*_amd64.deb' | head -n 1)
+          # Pick the Noble amd64 .deb asset
+          url=$(echo "$json" | jq -r '.assets[].browser_download_url' | grep 'kasmvncserver_noble_.*_amd64\.deb' | head -n 1)
           if [ -z "$url" ]; then
             echo "Could not resolve kasmvnc .deb for noble/amd64" >&2
             exit 1
           fi
-          echo "KASMVNC_DEB_URL=$url" >> $GITHUB_OUTPUT
+          echo "KASMVNC_DEB_URL=$url" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@v6
