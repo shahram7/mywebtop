@@ -59,6 +59,20 @@ jobs:
             type=ref,event=tag
             type=sha
 
+      - name: Resolve latest KasmVNC .deb (Ubuntu Noble amd64)
+        id: kasmvnc
+        run: |
+          set -euo pipefail
+          # Query the latest release
+          json="$(curl -s https://api.github.com/repos/kasmtech/KasmVNC/releases/latest)"
+          # Pick the Noble amd64 deb asset
+          url=$(echo "$json" | jq -r '.assets[].browser_download_url' | grep 'kasmvncserver_noble_.*_amd64.deb' | head -n 1)
+          if [ -z "$url" ]; then
+            echo "Could not resolve kasmvnc .deb for noble/amd64" >&2
+            exit 1
+          fi
+          echo "KASMVNC_DEB_URL=$url" >> $GITHUB_OUTPUT
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -68,5 +82,4 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            KASMVNC_VERSION=1.4.0
-            KASMVNC_DISTRO=noble
+            KASMVNC_DEB_URL=${{ steps.kasmvnc.outputs.KASMVNC_DEB_URL }}
