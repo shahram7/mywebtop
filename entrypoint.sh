@@ -14,7 +14,6 @@ VNC_HOME="${HOME}/.vnc"
 mkdir -p "${VNC_HOME}"
 
 # Create KasmVNC user (HTTP Basic Auth) if missing; grant read+write (-w -r).
-# Server/users model is documented in KasmVNC "Server Side" docs.  [5](https://kasm.com/kasmvnc)
 if ! grep -q "^${VNC_USER}:" "${VNC_HOME}/.kasmpasswd" 2>/dev/null; then
   printf '%s\n' "${VNC_PASSWORD}" | vncpasswd -u "${VNC_USER}" -w -r
 fi
