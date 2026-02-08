@@ -11,7 +11,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     VNC_PASSWORD=changeit \
     RESOLUTION=1920x1080 \
     KASMVNC_VERSION=1.4.0 \
-    KASMVNC_DISTRO=noble   # 24.04
+    KASMVNC_DISTRO=noble
 
 # Base tools and KDE Plasma
 RUN apt-get update && apt-get install -y --no-install-recommends \
