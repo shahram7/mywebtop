@@ -2,20 +2,24 @@
 set -euo pipefail
 
 : "${VNC_USER:=owner}"
-: "${VNC_PASSWORD:=changeit}"
+: "${VNC_PASSWORD:=}"
 : "${RESOLUTION:=1920x1080}"
+
+if [ -z "${VNC_PASSWORD}" ]; then
+  echo "ERROR: VNC_PASSWORD is not set. Pass -e VNC_PASSWORD=... at runtime." >&2
+  exit 1
+fi
 
 VNC_HOME="${HOME}/.vnc"
 mkdir -p "${VNC_HOME}"
 
-# Create a KasmVNC user (HTTP Basic Auth user KasmVNC uses internally)
-# Permissions: -w (write) implies read; owner perms are API-level. [5](https://codesandbox.io/p/github/Cdaprod/KasmVNC)
+# Create KasmVNC user (HTTP Basic Auth) if missing; grant read+write (-w -r).
+# Server/users model is documented in KasmVNC "Server Side" docs.  [5](https://kasm.com/kasmvnc)
 if ! grep -q "^${VNC_USER}:" "${VNC_HOME}/.kasmpasswd" 2>/dev/null; then
-  echo "Creating KasmVNC user '${VNC_USER}'..."
   printf '%s\n' "${VNC_PASSWORD}" | vncpasswd -u "${VNC_USER}" -w -r
 fi
 
-# Ensure xstartup is our Plasma script
+# Ensure our KDE startup is used
 install -m 0755 /opt/kasmvnc/xstartup.plasma "${VNC_HOME}/xstartup"
 
 # Optional per-user resolution override
@@ -26,5 +30,5 @@ desktop:
     height: ${RESOLUTION#*x}
 EOF
 
-echo "Starting KasmVNC at ${RESOLUTION}..."
+echo "Starting KasmVNC at ${RESOLUTION} (TLS enabled)..."
 exec vncserver -geometry "${RESOLUTION}" -fg
