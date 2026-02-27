@@ -1,10 +1,8 @@
 # ============================================================
-# webtop-ubuntu-kde
-# Ubuntu LTS + KDE Plasma + KasmVNC
+# mywebtop – Ubuntu 24.04 (Noble) + KDE Plasma + KasmVNC
 # Based on linuxserver/baseimage-kasmvnc (Ubuntu flavor)
 # ============================================================
 
-# Track the latest Ubuntu 24.04 (Noble) base from linuxserver.
 # Available tags: ubuntunoble (24.04), ubuntujammy (22.04)
 # See: https://github.com/linuxserver/docker-baseimage-kasmvnc
 FROM ghcr.io/linuxserver/baseimage-kasmvnc:ubuntunoble
@@ -12,7 +10,7 @@ FROM ghcr.io/linuxserver/baseimage-kasmvnc:ubuntunoble
 # --------------- labels ---------------
 ARG BUILD_DATE
 ARG VERSION
-LABEL build_version="webtop-ubuntu-kde version:- ${VERSION} Build-date:- ${BUILD_DATE}"
+LABEL build_version="mywebtop version:- ${VERSION} Build-date:- ${BUILD_DATE}"
 LABEL maintainer="you"
 
 # --------------- window manager title shown in browser tab ---------------
@@ -26,7 +24,7 @@ RUN \
   echo "**** update apt cache ****" && \
   apt-get update && \
   \
-  echo "**** install KDE Plasma desktop (minimal, no heavy extras) ****" && \
+  echo "**** install KDE Plasma desktop ****" && \
   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     kde-plasma-desktop \
     plasma-workspace \
@@ -51,7 +49,7 @@ RUN \
     xdg-utils \
     xdg-user-dirs && \
   \
-  echo "**** optional but handy apps ****" && \
+  echo "**** optional apps ****" && \
   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     chromium-browser \
     wget \
@@ -59,12 +57,13 @@ RUN \
     nano \
     less && \
   \
+  echo "**** pre-create tmp session dirs with sticky-bit permissions ****" && \
+  mkdir -p /tmp/.ICE-unix /tmp/.X11-unix && \
+  chmod 1777 /tmp/.ICE-unix /tmp/.X11-unix && \
+  \
   echo "**** cleanup ****" && \
   apt-get autoclean && \
-  rm -rf \
-    /var/lib/apt/lists/* \
-    /tmp/* \
-    /var/tmp/*
+  rm -rf /var/lib/apt/lists/* /var/tmp/*
 
 # add local config / startup files
 COPY root/ /
