@@ -4,9 +4,10 @@
 # Based on linuxserver/baseimage-kasmvnc (Ubuntu flavor)
 # ============================================================
 
-# Track the latest Ubuntu LTS base from linuxserver
-# Available tags: ubuntu2404, ubuntu2204 – change here to upgrade
-FROM ghcr.io/linuxserver/baseimage-kasmvnc:ubuntu2404
+# Track the latest Ubuntu 24.04 (Noble) base from linuxserver.
+# Available tags: ubuntunoble (24.04), ubuntujammy (22.04)
+# See: https://github.com/linuxserver/docker-baseimage-kasmvnc
+FROM ghcr.io/linuxserver/baseimage-kasmvnc:ubuntunoble
 
 # --------------- labels ---------------
 ARG BUILD_DATE
@@ -37,7 +38,7 @@ RUN \
     plasma-nm \
     plasma-pa \
     kscreen \
-    ksysguard \
+    plasma-systemmonitor \
     khotkeys \
     kinfocenter \
     breeze \

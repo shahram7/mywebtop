@@ -1,9 +1,9 @@
 services:
   webtop-ubuntu-kde:
-    image: ghcr.io/shahram7/mywebtop:latest
+    image: ghcr.io/YOUR_GITHUB_USERNAME/webtop-ubuntu-kde:latest
     # Or build locally:
     # build: .
-    container_name: MyWebtop
+    container_name: webtop-ubuntu-kde
     security_opt:
       - seccomp:unconfined   # required for many KDE features
     environment:

@@ -11,7 +11,7 @@ they switched to Selkies.
 
 ```bash
 # Pull the latest image (replace with your GitHub username)
-docker pull shahram7/mywebtop:latest
+docker pull ghcr.io/shahram7/mywebtop:latest
 
 # Or run directly with compose
 docker compose up -d
@@ -56,10 +56,10 @@ Change the `FROM` line in `Dockerfile`:
 
 ```dockerfile
 # Ubuntu 24.04 (Noble)
-FROM ghcr.io/linuxserver/baseimage-kasmvnc:ubuntu2404
+FROM ghcr.io/linuxserver/baseimage-kasmvnc:ubuntunoble
 
 # Ubuntu 22.04 (Jammy)
-FROM ghcr.io/linuxserver/baseimage-kasmvnc:ubuntu2204
+FROM ghcr.io/linuxserver/baseimage-kasmvnc:ubuntujammy
 ```
 
 ---

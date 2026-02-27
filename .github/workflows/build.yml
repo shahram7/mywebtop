@@ -1,10 +1,10 @@
-name: Build & Push Docker Image
+name: Build & Push mywebtop
 
 on:
   # ── Automatic triggers ──────────────────────────────────────────
   schedule:
-    # Run every Monday at 04:00 UTC – picks up new Ubuntu packages,
-    # new KasmVNC base images, and new Alpine/Ubuntu upstream releases.
+    # Run every Monday at 04:00 UTC – picks up new Ubuntu packages
+    # and any updated linuxserver/baseimage-kasmvnc base image.
     - cron: "0 4 * * 1"
 
   # Rebuild whenever the Dockerfile or startup script changes
@@ -21,7 +21,7 @@ on:
 # ── Permissions ─────────────────────────────────────────────────
 permissions:
   contents: read
-  packages: write   # needed to push to ghcr.io
+  packages: write   # required to push to ghcr.io
 
 # ── Job ─────────────────────────────────────────────────────────
 jobs:
@@ -29,45 +29,55 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout your repo
+      # 1. Checkout
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Set up QEMU for multi-arch builds (optional but future-proof)
+      # 2. QEMU for multi-arch (amd64 + arm64)
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      # 3. Set up Docker Buildx
+      # 3. Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
+      # 4a. Log in to GitHub Container Registry (always)
+      #     Uses the automatic GITHUB_TOKEN – no extra secret needed.
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 4b. Log in to Docker Hub (only if secret is present)
+      #     Add DOCKERHUB_USERNAME + DOCKERHUB_TOKEN in repo secrets to enable.
+      - name: Log in to Docker Hub
+        if: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 5. Generate build metadata (tags + labels)
+      # 5. Build metadata – image is called "mywebtop" on both registries
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: |
-            # ghcr.io/${{ github.repository_owner }}/mywebtop
-            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/mywebtop  # uncomment for Docker Hub
+            ghcr.io/${{ github.repository_owner }}/mywebtop
+            ${{ secrets.DOCKERHUB_USERNAME != '' && format('docker.io/{0}/mywebtop', secrets.DOCKERHUB_USERNAME) || '' }}
           tags: |
             type=raw,value=latest
             type=schedule,pattern={{date 'YYYYMMDD'}}
             type=sha,prefix=git-
 
-      # 6. Check whether the upstream base image has changed since the last build.
-      #    We pull the upstream manifest digest and compare it to the cached one.
-      #    If it matches (nothing changed upstream AND no code push triggered this),
-      #    we skip the expensive build step.
+      # 6. Check if the upstream base image digest has changed
       - name: Check upstream base image digest
         id: upstream
         run: |
-          BASE="ghcr.io/linuxserver/baseimage-kasmvnc:ubuntu2404"
+          BASE="ghcr.io/linuxserver/baseimage-kasmvnc:ubuntunoble"
           DIGEST=$(docker buildx imagetools inspect "${BASE}" \
             --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || echo "unknown")
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
@@ -83,8 +93,8 @@ jobs:
       - name: Decide whether to build
         id: should_build
         run: |
-          # Always build on push events or manual triggers.
-          # On schedule: build only if upstream digest changed (cache miss).
+          # Always build on code push or manual trigger.
+          # On schedule: only build if upstream digest changed (cache miss = new base image).
           if [[ "${{ github.event_name }}" == "push" || \
                 "${{ github.event_name }}" == "workflow_dispatch" || \
                 "${{ steps.cache.outputs.cache-hit }}" != "true" ]]; then
@@ -94,10 +104,10 @@ jobs:
             echo "Upstream base image unchanged – skipping build."
           fi
 
-      # 7. Build and push (amd64 + arm64)
+      # 7. Build and push
       - name: Build and push
         if: steps.should_build.outputs.build == 'true'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -107,11 +117,10 @@ jobs:
           build-args: |
             BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
             VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
-          # Use GitHub Actions cache to speed up repeated builds
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 8. Save the upstream digest so next scheduled run can compare
-      - name: Save upstream digest to cache
+      # 8. Save digest so next scheduled run can compare
+      - name: Save upstream digest
         if: steps.should_build.outputs.build == 'true'
         run: echo "${{ steps.upstream.outputs.digest }}" > .upstream-digest
