@@ -11,7 +11,7 @@ they switched to Selkies.
 
 ```bash
 # Pull the latest image (replace with your GitHub username)
-docker pull ghcr.io/YOUR_GITHUB_USERNAME/webtop-ubuntu-kde:latest
+docker pull shahram7/mywebtop:latest
 
 # Or run directly with compose
 docker compose up -d
