@@ -1,6 +1,6 @@
 services:
   webtop-ubuntu-kde:
-    image: ghcr.io/YOUR_GITHUB_USERNAME/webtop-ubuntu-kde:latest
+    image: ghcr.io/shahram7/webtop-ubuntu-kde:latest
     # Or build locally:
     # build: .
     container_name: webtop-ubuntu-kde
