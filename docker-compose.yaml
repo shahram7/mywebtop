@@ -1,0 +1,21 @@
+services:
+  webtop-ubuntu-kde:
+    image: ghcr.io/shahram7/mywebtop:latest
+    # Or build locally:
+    # build: .
+    container_name: MyWebtop
+    security_opt:
+      - seccomp:unconfined   # required for many KDE features
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+      - SUBFOLDER=/          # change if running behind a reverse proxy sub-path
+      # - TITLE=My KDE Desktop   # override browser tab title
+    volumes:
+      - ./config:/config     # persistent home directory + app configs
+    ports:
+      - "3000:3000"          # KasmVNC web UI (http)
+      - "3001:3001"          # KasmVNC web UI (https)
+    shm_size: "1gb"          # KDE/Chromium need shared memory
+    restart: unless-stopped
