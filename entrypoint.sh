@@ -1,11 +1,66 @@
 #!/bin/bash
 set -e
 
-# Ensure KasmVNC user config exists to avoid interactive prompt
-if [ ! -f /etc/kasmvnc/users.conf ]; then
-  echo "Initializing default KasmVNC user configuration..."
+echo "===== KasmVNC Docker Entrypoint ====="
+
+#############################################
+# 1. Ensure DBus is available
+#############################################
+if [ ! -e /run/dbus/pid ]; then
+  echo "[Init] Starting system DBus..."
+  mkdir -p /run/dbus
+  dbus-daemon --system --fork || true
+fi
+
+# Create a DBus session address
+export DBUS_SESSION_BUS_ADDRESS=$(dbus-launch --sh-syntax \
+  | grep DBUS_SESSION_BUS_ADDRESS \
+  | cut -d= -f2- \
+  | tr -d "'" \
+  | tr -d ';') || true
+
+
+#############################################
+# 2. First-run KDE configuration
+#############################################
+mkdir -p /root/.config
+cat > /root/.config/plasma-welcomerc <<EOF
+[General]
+LastSeenVersion=99.0
+EOF
+
+
+#############################################
+# 3. Ensure KasmVNC config folder exists
+#    (important if /etc/kasmvnc is a Docker volume)
+#############################################
+if [ ! -d /etc/kasmvnc ]; then
+  echo "[Init] Creating /etc/kasmvnc directory..."
   mkdir -p /etc/kasmvnc
-  cat >/etc/kasmvnc/users.conf <<EOF
+fi
+
+
+#############################################
+# 4. Auto-generate SSL certificate if missing
+#############################################
+if [ ! -f /etc/kasmvnc/certs/self.crt ]; then
+  echo "[Init] No SSL certificate detected — generating self-signed cert..."
+  mkdir -p /etc/kasmvnc/certs
+
+  openssl req -x509 -nodes -days 3650 -newkey rsa:4096 \
+    -keyout /etc/kasmvnc/certs/self.key \
+    -out /etc/kasmvnc/certs/self.crt \
+    -subj "/C=US/ST=State/L=City/O=KasmVNC/OU=Desktop/CN=localhost" \
+    -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+fi
+
+
+#############################################
+# 5. Disable KasmVNC user wizard forever
+#############################################
+if [ ! -f /etc/kasmvnc/users.conf ]; then
+  echo "[Init] Creating default users.conf to prevent interactive wizard..."
+  cat > /etc/kasmvnc/users.conf <<EOF
 users:
   - username: root
     permissions:
@@ -13,45 +68,27 @@ users:
 EOF
 fi
 
-# Allow custom VNC password via environment variable
-if [ -n "${VNC_PASSWORD}" ]; then
-  echo "Using VNC password authentication"
-  printf "%s\n%s\n" "$VNC_PASSWORD" "$VNC_PASSWORD" | vncpasswd /root/.vnc/passwd
-else
-  echo "Disabling VNC password authentication"
-  touch /root/.vnc/passwd
-  chmod 600 /root/.vnc/passwd
-fi
 
-# Clean up any stale lock files
-rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 2>/dev/null || true
+#############################################
+# 6. Disable KasmVNC password authentication
+#    (Cloudflare Zero Trust handles auth)
+#############################################
+echo "[Init] Disabling VNC password authentication..."
+mkdir -p /root/.vnc
+touch /root/.vnc/passwd
+chmod 600 /root/.vnc/passwd
 
-# Configure KDE to not show first-run wizard
-mkdir -p /root/.config
-cat > /root/.config/plasma-welcomerc <<EOF
-[General]
-LastSeenVersion=99.0
-EOF
 
-# Ensure dbus is running
-if [ ! -e /run/dbus/pid ]; then
-    mkdir -p /run/dbus
-    dbus-daemon --system --fork 2>/dev/null || true
-fi
+#############################################
+# 7. Clean up stale X11 locks
+#############################################
+rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 || true
 
-export DBUS_SESSION_BUS_ADDRESS=$(dbus-launch --sh-syntax 2>/dev/null | grep DBUS_SESSION_BUS_ADDRESS | cut -d= -f2- | tr -d "'" | tr -d ';') || true
 
-if [ ! -f /etc/kasmvnc/certs/self.crt ]; then
-  echo "Generating missing SSL certificate..."
-  openssl req -x509 -nodes -days 3650 -newkey rsa:4096 \
-    -keyout /etc/kasmvnc/certs/self.key \
-    -out /etc/kasmvnc/certs/self.crt \
-    -subj "/CN=localhost"
-fi
-
-echo "Starting KasmVNC on port 8443 — resolution will auto-match your browser window..."
-
-# Use a generous initial canvas; KasmVNC will resize it to match the client
+#############################################
+# 8. Launch KasmVNC server
+#############################################
+echo "Starting KasmVNC on port 8443 with auth disabled..."
 
 exec vncserver :1 \
   --noauth \
