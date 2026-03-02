@@ -55,6 +55,7 @@ echo "Starting KasmVNC on port 8443 — resolution will auto-match your browser 
 
 exec vncserver :1 \
   --noauth \
+  --skipConfigWizard \
   --skipUserAuth \
   -select-de kde \
   -geometry 1920x1080 \
