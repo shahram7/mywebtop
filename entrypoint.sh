@@ -66,4 +66,4 @@ exec vncserver :1 \
   -key /etc/kasmvnc/certs/self.key \
   -FrameRate "${MAX_FRAME_RATE:-60}" \
   -fg \
-    2>&1
+  2>&1
