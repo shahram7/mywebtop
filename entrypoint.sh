@@ -29,6 +29,19 @@ fi
 
 export DBUS_SESSION_BUS_ADDRESS=$(dbus-launch --sh-syntax 2>/dev/null | grep DBUS_SESSION_BUS_ADDRESS | cut -d= -f2- | tr -d "'" | tr -d ';') || true
 
+# Ensure KasmVNC user config exists to avoid interactive prompt
+if [ ! -f /etc/kasmvnc/users.conf ]; then
+  echo "Creating default KasmVNC user configuration..."
+  mkdir -p /etc/kasmvnc
+
+  cat >/etc/kasmvnc/users.conf <<EOF
+users:
+  - username: root
+    permissions:
+      - write
+EOF
+fi
+
 if [ ! -f /etc/kasmvnc/certs/self.crt ]; then
   echo "Generating missing SSL certificate..."
   openssl req -x509 -nodes -days 3650 -newkey rsa:4096 \
@@ -43,6 +56,7 @@ echo "Starting KasmVNC on port 8443 — resolution will auto-match your browser 
 
 exec vncserver :1 \
   --noauth \
+  --skipUserAuth \
   -select-de kde \
   -geometry 1920x1080 \
   -depth "${VNC_COL_DEPTH:-24}" \
