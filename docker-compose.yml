@@ -7,7 +7,6 @@ services:
       - "8443:8443"
     environment:
       - VNC_PASSWORD=changeme
-      - VNC_RESOLUTION=1920x1080
       - VNC_COL_DEPTH=24
       - MAX_FRAME_RATE=60
     shm_size: '1gb'

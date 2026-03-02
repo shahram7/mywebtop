@@ -8,9 +8,6 @@ network:
     public_ip: auto
 
 desktop:
-  resolution:
-    width: 1920
-    height: 1080
   allow_resize: true
   force_resolution: false
   color_depth: 24

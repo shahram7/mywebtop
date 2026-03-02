@@ -8,9 +8,6 @@ if [ -n "${VNC_PASSWORD}" ]; then
     printf "${VNC_PASSWORD}\n${VNC_PASSWORD}\n" | vncpasswd /root/.vnc/passwd
 fi
 
-# Set resolution from env
-RESOLUTION="${VNC_RESOLUTION:-1920x1080}"
-
 # Clean up any stale lock files
 rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 2>/dev/null || true
 
@@ -29,17 +26,17 @@ fi
 
 export DBUS_SESSION_BUS_ADDRESS=$(dbus-launch --sh-syntax 2>/dev/null | grep DBUS_SESSION_BUS_ADDRESS | cut -d= -f2- | tr -d "'" | tr -d ';') || true
 
-echo "Starting KasmVNC on port 8443 with resolution ${RESOLUTION}..."
+echo "Starting KasmVNC on port 8443 — resolution will auto-match your browser window..."
 
+# Use a generous initial canvas; KasmVNC will resize it to match the client
 exec vncserver :1 \
     -select-de kde \
-    -geometry "${RESOLUTION}" \
+    -geometry 1920x1080 \
     -depth "${VNC_COL_DEPTH:-24}" \
     -rfbport 8443 \
     -websocketPort 8443 \
     -cert /etc/kasmvnc/certs/self.crt \
     -key /etc/kasmvnc/certs/self.key \
     -FrameRate "${MAX_FRAME_RATE:-60}" \
-    ${VNCOPTIONS} \
     -fg \
     2>&1

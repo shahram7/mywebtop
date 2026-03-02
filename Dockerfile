@@ -11,10 +11,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LC_ALL=en_US.UTF-8 \
     DISPLAY=:1 \
     VNC_PORT=8443 \
-    VNC_RESOLUTION=1920x1080 \
     VNC_COL_DEPTH=24 \
-    MAX_FRAME_RATE=60 \
-    VNCOPTIONS="-PreferBandwidth 0 -DynamicQualityMin 4 -DynamicQualityMax 7 -DLP_ClipSendingAllowed 1 -DLP_ClipReceivingAllowed 1"
+    MAX_FRAME_RATE=60
 
 # Install dependencies and KDE
 RUN apt-get update && apt-get install -y --no-install-recommends \
