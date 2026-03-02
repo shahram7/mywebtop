@@ -9,7 +9,6 @@ docker run -d \
   --name kde-desktop \
   -p 8443:8443 \
   -e VNC_PASSWORD=changeme \
-  -e VNC_RESOLUTION=1920x1080 \
   --shm-size=1g \
   --restart unless-stopped \
   your-dockerhub-username/ubuntu-kde-kasmvnc:latest
@@ -26,15 +25,12 @@ Then open your browser: **https://localhost:8443**
 ```yaml
 services:
   kde-desktop:
-    image: your-dockerhub-username/ubuntu-kde-kasmvnc:latest
+    image: shahram7/ubuntu-kde-kasmvnc:latest
     container_name: kde-desktop
     ports:
       - "8443:8443"
     environment:
       - VNC_PASSWORD=changeme
-      - VNC_RESOLUTION=1920x1080
-      - VNC_COL_DEPTH=24
-      - MAX_FRAME_RATE=60
     shm_size: '1gb'
     restart: unless-stopped
 ```
