@@ -56,17 +56,18 @@ fi
 
 
 #############################################
-# 5. Disable KasmVNC user wizard forever
+# 5. Ensure users.conf exists when /etc/kasmvnc is a fresh (empty) volume
 #############################################
 if [ ! -f /etc/kasmvnc/users.conf ]; then
-  echo "[Init] Creating default users.conf to prevent interactive wizard..."
-  cat > /etc/kasmvnc/users.conf <<EOF
+  mkdir -p /etc/kasmvnc
+  cat >/etc/kasmvnc/users.conf <<'EOF'
 users:
   - username: root
     permissions:
       - write
 EOF
 fi
+
 
 
 #############################################

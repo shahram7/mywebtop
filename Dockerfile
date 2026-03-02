@@ -57,7 +57,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install KasmVNC
+# 1) Install KasmVNC
 RUN KASMVNC_VER=$(curl -sX GET "https://api.github.com/repos/kasmtech/KasmVNC/releases/latest" \
         | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') \
     && UBUNTU_CODENAME=$(. /etc/os-release && echo "${UBUNTU_CODENAME:-$(lsb_release -cs 2>/dev/null || echo noble)}") \
@@ -69,7 +69,10 @@ RUN KASMVNC_VER=$(curl -sX GET "https://api.github.com/repos/kasmtech/KasmVNC/re
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/kasmvnc.deb
 
-# Generate self-signed SSL certificate
+# 2) Hard-disable any auto-starting service units or init scripts (defensive)
+RUN rm -f /lib/systemd/system/kasmvncserver.service /etc/systemd/system/kasmvncserver.service /etc/init.d/kasmvncserver || true
+
+# 3) Generate self-signed SSL certificate
 RUN mkdir -p /etc/kasmvnc/certs \
     && openssl req -x509 -nodes -days 3650 -newkey rsa:4096 \
         -keyout /etc/kasmvnc/certs/self.key \
@@ -77,9 +80,16 @@ RUN mkdir -p /etc/kasmvnc/certs \
         -subj "/C=US/ST=State/L=City/O=KasmVNC/OU=Desktop/CN=localhost" \
         -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
 
-# Configure KasmVNC
-RUN mkdir -p /root/.vnc
+# 4) Copy server config and create users.conf at build time
+RUN mkdir -p /root/.vnc /etc/kasmvnc
 COPY kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
+RUN cat >/etc/kasmvnc/users.conf <<'EOF'
+users:
+  - username: root
+    permissions:
+      - write
+EOF
+RUN chmod 644 /etc/kasmvnc/kasmvnc.yaml /etc/kasmvnc/users.conf
 
 # Startup script
 COPY entrypoint.sh /entrypoint.sh
