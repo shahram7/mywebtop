@@ -81,9 +81,6 @@ RUN mkdir -p /etc/kasmvnc/certs \
 RUN mkdir -p /root/.vnc
 COPY kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
 
-# Set VNC password (default: "vncpassword" - change via env var VNC_PASSWORD)
-RUN echo "vncpassword" | vncpasswd -u root -w -r 2>/dev/null || true
-
 # Startup script
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
