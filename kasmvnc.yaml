@@ -9,8 +9,6 @@ network:
 
 desktop:
   allow_resize: true
-  force_resolution: false
-  color_depth: 24
 
 encoding:
   max_frame_rate: 60
@@ -18,14 +16,9 @@ encoding:
   rect_encoding_mode:
     min_quality: 4
     max_quality: 7
-    lossless_refresh: 1
 
 user_session:
-  clipboard:
-    allow_copy_to_local: true
-    allow_copy_from_local: true
-  idle_disconnect: 0
+  clipboard: {}
 
 logging:
   level: 30
-  target: stderr
