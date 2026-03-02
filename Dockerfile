@@ -72,8 +72,7 @@ RUN KASMVNC_VER=$(curl -sX GET "https://api.github.com/repos/kasmtech/KasmVNC/re
 # 2) Hard-disable any auto-starting service units or init scripts (defensive)
 RUN rm -f /lib/systemd/system/kasmvncserver.service /etc/systemd/system/kasmvncserver.service /etc/init.d/kasmvncserver || true
 # Remove TigerVNC / generic vncserver wrapper (causes wizard)
-RUN rm -f /usr/bin/vncserver /bin/vncserver /etc/alternatives/vncserver || true
-RUN rm -f /usr/local/bin/vncserver || true
+RUN rm -f /usr/bin/vncserver /bin/vncserver /usr/local/bin/vncserver /etc/alternatives/vncserver || true
 
 # 3) Generate self-signed SSL certificate
 RUN mkdir -p /etc/kasmvnc/certs \
