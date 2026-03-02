@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:latest
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
@@ -13,6 +13,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && locale-gen en_US.UTF-8 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y \
+    plasma-desktop \
+    plasma-workspace \
+    kde-config-plasma-desktop \
+    kde-standard \
+    --no-install-recommends    
 
 # Install KasmVNC from GitHub Releases (auto-detect version & codename)
 RUN KASMVNC_VER=$(curl -s https://api.github.com/repos/kasmtech/KasmVNC/releases/latest \
