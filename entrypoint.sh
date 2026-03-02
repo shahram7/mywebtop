@@ -1,6 +1,18 @@
 #!/bin/bash
 set -e
 
+# Ensure KasmVNC user config exists to avoid interactive prompt
+if [ ! -f /etc/kasmvnc/users.conf ]; then
+  echo "Initializing default KasmVNC user configuration..."
+  mkdir -p /etc/kasmvnc
+  cat >/etc/kasmvnc/users.conf <<EOF
+users:
+  - username: root
+    permissions:
+      - write
+EOF
+fi
+
 # Allow custom VNC password via environment variable
 if [ -n "${VNC_PASSWORD}" ]; then
   echo "Using VNC password authentication"
@@ -28,19 +40,6 @@ if [ ! -e /run/dbus/pid ]; then
 fi
 
 export DBUS_SESSION_BUS_ADDRESS=$(dbus-launch --sh-syntax 2>/dev/null | grep DBUS_SESSION_BUS_ADDRESS | cut -d= -f2- | tr -d "'" | tr -d ';') || true
-
-# Ensure KasmVNC user config exists to avoid interactive prompt
-if [ ! -f /etc/kasmvnc/users.conf ]; then
-  echo "Creating default KasmVNC user configuration..."
-  mkdir -p /etc/kasmvnc
-
-  cat >/etc/kasmvnc/users.conf <<EOF
-users:
-  - username: root
-    permissions:
-      - write
-EOF
-fi
 
 if [ ! -f /etc/kasmvnc/certs/self.crt ]; then
   echo "Generating missing SSL certificate..."
