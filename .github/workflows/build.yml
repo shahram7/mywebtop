@@ -1,31 +1,126 @@
-name: Build & Push mywebtop
+name: Build and Push Docker Image
 
 on:
-  schedule:
-    # Every Monday 04:00 UTC – picks up new Ubuntu packages and updated base image
-    - cron: "0 4 * * 1"
-
   push:
-    branches: ["main"]
-    paths:
-      - "Dockerfile"
-      - "root/**"
-      - ".github/workflows/build.yml"
-
+    branches:
+      - main
+      - master
+  schedule:
+    # Check for upstream updates daily at 3 AM UTC
+    - cron: '0 3 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: read
-  packages: write   # required to push to ghcr.io
+env:
+  IMAGE_NAME: ubuntu-kde-kasmvnc
+  DOCKERHUB_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/ubuntu-kde-kasmvnc
+  GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/ubuntu-kde-kasmvnc
 
 jobs:
-  build-and-push:
+  check-upstream:
+    name: Check Upstream Updates
     runs-on: ubuntu-latest
+    outputs:
+      ubuntu_changed: ${{ steps.ubuntu.outputs.changed }}
+      kasmvnc_changed: ${{ steps.kasmvnc.outputs.changed }}
+      kde_changed: ${{ steps.kde.outputs.changed }}
+      should_build: ${{ steps.decide.outputs.should_build }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    env:
-      # Expose secret as env var so we can safely check it in if: conditions
-      HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' && 'true' || 'false' }}
+      - name: Restore upstream cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .upstream-cache
+          key: upstream-versions-${{ github.run_id }}
+          restore-keys: upstream-versions-
 
+      - name: Check Ubuntu latest digest
+        id: ubuntu
+        run: |
+          CURRENT=$(cat .upstream-cache/ubuntu_digest 2>/dev/null || echo "none")
+          LATEST=$(docker manifest inspect ubuntu:latest 2>/dev/null | \
+            python3 -c "import sys,json; m=json.load(sys.stdin); print(m.get('config',{}).get('digest', m.get('manifests',[])[0].get('digest','unknown') if m.get('manifests') else 'unknown'))" \
+            || echo "check-failed-$RANDOM")
+          echo "Current: $CURRENT | Latest: $LATEST"
+          if [ "$CURRENT" != "$LATEST" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            mkdir -p .upstream-cache
+            echo "$LATEST" > .upstream-cache/ubuntu_digest
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check KasmVNC latest release
+        id: kasmvnc
+        run: |
+          CURRENT=$(cat .upstream-cache/kasmvnc_version 2>/dev/null || echo "none")
+          LATEST=$(curl -sf "https://api.github.com/repos/kasmtech/KasmVNC/releases/latest" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])" \
+            || echo "check-failed-$RANDOM")
+          echo "Current: $CURRENT | Latest: $LATEST"
+          if [ "$CURRENT" != "$LATEST" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            mkdir -p .upstream-cache
+            echo "$LATEST" > .upstream-cache/kasmvnc_version
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check KDE Plasma version in Ubuntu
+        id: kde
+        run: |
+          CURRENT=$(cat .upstream-cache/kde_version 2>/dev/null || echo "none")
+          # Pull from Ubuntu package info
+          LATEST=$(curl -sf "https://packages.ubuntu.com/search?keywords=kde-plasma-desktop&searchon=names&suite=all&section=all" \
+            | grep -oP 'Version: \K[\d.+-]+' | head -1 \
+            || echo "check-failed-$RANDOM")
+          # Fallback: just use Ubuntu archive API
+          if [[ "$LATEST" == "check-failed"* ]]; then
+            LATEST=$(curl -sf "https://api.launchpad.net/1.0/ubuntu/+archive/primary?ws.op=getPublishedSources&source_name=plasma-workspace&order_by_date=true" \
+              | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['entries'][0]['source_package_version'] if d.get('entries') else 'unknown')" \
+              2>/dev/null || echo "unknown-$RANDOM")
+          fi
+          echo "Current: $CURRENT | Latest: $LATEST"
+          if [ "$CURRENT" != "$LATEST" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            mkdir -p .upstream-cache
+            echo "$LATEST" > .upstream-cache/kde_version
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Save updated cache
+        uses: actions/cache/save@v4
+        with:
+          path: .upstream-cache
+          key: upstream-versions-${{ github.run_id }}
+
+      - name: Decide whether to build
+        id: decide
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]] || \
+             [[ "${{ github.event_name }}" == "workflow_dispatch" ]] || \
+             [[ "${{ steps.ubuntu.outputs.changed }}" == "true" ]] || \
+             [[ "${{ steps.kasmvnc.outputs.changed }}" == "true" ]] || \
+             [[ "${{ steps.kde.outputs.changed }}" == "true" ]]; then
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "✅ Build triggered"
+          else
+            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "⏭️ No upstream changes detected, skipping build"
+          fi
+
+  build-and-push:
+    name: Build & Push
+    runs-on: ubuntu-latest
+    needs: check-upstream
+    if: needs.check-upstream.outputs.should_build == 'true'
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,89 +131,65 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # GHCR login – GITHUB_TOKEN is injected automatically by GitHub, no secret needed
-      - name: Log in to GHCR
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Docker Hub login – only runs if DOCKERHUB_TOKEN secret exists
-      - name: Log in to Docker Hub
-        if: env.HAS_DOCKERHUB == 'true'
-        uses: docker/login-action@v3
-        with:
-          registry: docker.io
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      # Tags for GHCR (always)
-      - name: Docker metadata
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/mywebtop
+          images: |
+            ${{ env.DOCKERHUB_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
           tags: |
-            type=raw,value=latest
-            type=schedule,pattern={{date 'YYYYMMDD'}}
-            type=sha,prefix=git-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-
+            type=schedule,pattern={{date 'YYYY-MM-DD'}}
+            type=ref,event=branch
 
-      # If Docker Hub secrets exist, append extra tags for it
-      - name: Add Docker Hub tags
-        if: env.HAS_DOCKERHUB == 'true'
-        run: |
-          OWNER="${{ secrets.DOCKERHUB_USERNAME }}"
-          # Append Docker Hub tags to the bake file output from metadata-action
-          echo "EXTRA_TAGS=docker.io/${OWNER}/mywebtop:latest,docker.io/${OWNER}/mywebtop:$(date +%Y%m%d)" >> "$GITHUB_ENV"
-
-      # Check if upstream base image digest has changed (for scheduled runs)
-      - name: Check upstream base image digest
-        id: upstream
-        run: |
-          BASE="ghcr.io/linuxserver/baseimage-kasmvnc:ubuntunoble"
-          DIGEST=$(docker buildx imagetools inspect "${BASE}" \
-            --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || echo "unknown")
-          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
-          echo "Upstream digest: ${DIGEST}"
-
-      - name: Restore cached upstream digest
-        id: cache
-        uses: actions/cache@v4
-        with:
-          path: .upstream-digest
-          key: upstream-digest-${{ steps.upstream.outputs.digest }}
-
-      - name: Decide whether to build
-        id: should_build
-        run: |
-          if [[ "${{ github.event_name }}" == "push" || \
-                "${{ github.event_name }}" == "workflow_dispatch" || \
-                "${{ steps.cache.outputs.cache-hit }}" != "true" ]]; then
-            echo "build=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "build=false" >> "$GITHUB_OUTPUT"
-            echo "Upstream base image unchanged – skipping build."
-          fi
-
-      # Build and push – GHCR always, Docker Hub if secrets present
       - name: Build and push
-        if: steps.should_build.outputs.build == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
-          tags: |
-            ${{ steps.meta.outputs.tags }}
-            ${{ env.EXTRA_TAGS }}
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-            VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.run_id }}
+            VCS_REF=${{ github.sha }}
 
-      - name: Save upstream digest
-        if: steps.should_build.outputs.build == 'true'
-        run: echo "${{ steps.upstream.outputs.digest }}" > .upstream-digest
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@v4
+        continue-on-error: true
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.DOCKERHUB_IMAGE }}
+          readme-filepath: ./README.md
+
+  notify-no-build:
+    name: Skip notification
+    runs-on: ubuntu-latest
+    needs: check-upstream
+    if: needs.check-upstream.outputs.should_build == 'false'
+    steps:
+      - name: Log skip reason
+        run: |
+          echo "No upstream changes detected:"
+          echo "  Ubuntu changed: ${{ needs.check-upstream.outputs.ubuntu_changed }}"
+          echo "  KasmVNC changed: ${{ needs.check-upstream.outputs.kasmvnc_changed }}"
+          echo "  KDE changed: ${{ needs.check-upstream.outputs.kde_changed }}"
+          echo "Build skipped."

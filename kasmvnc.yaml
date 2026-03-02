@@ -1,18 +1,34 @@
 network:
   protocol: http
-  interface: 0.0.0.0
-  websocket_port: 8444
+  websocket_port: 8443
   ssl:
-    require_ssl: true
+    pem_certificate: /etc/kasmvnc/certs/self.crt
+    pem_key: /etc/kasmvnc/certs/self.key
+  udp:
+    public_ip: auto
 
 desktop:
   resolution:
     width: 1920
     height: 1080
   allow_resize: true
+  force_resolution: false
+  color_depth: 24
 
-runtime_configuration:
-  allow_client_to_override_kasm_server_settings: true
+encoding:
+  max_frame_rate: 60
+  full_frame_updates: 0
+  rect_encoding_mode:
+    min_quality: 4
+    max_quality: 7
+    lossless_refresh: 1
+
+user_session:
+  clipboard:
+    allow_copy_to_local: true
+    allow_copy_from_local: true
+  idle_disconnect: 0
 
 logging:
   level: 30
+  target: stderr

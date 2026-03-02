@@ -1,75 +1,98 @@
-# ============================================================
-# mywebtop – Ubuntu 24.04 (Noble) + KDE Plasma + KasmVNC
-# Based on linuxserver/baseimage-kasmvnc (Ubuntu flavor)
-# ============================================================
+FROM ubuntu:latest
 
-# Available tags: ubuntunoble (24.04), ubuntujammy (22.04)
-# See: https://github.com/linuxserver/docker-baseimage-kasmvnc
-FROM ghcr.io/linuxserver/baseimage-kasmvnc:ubuntunoble
+LABEL maintainer="your-name"
+LABEL description="Ubuntu KDE Desktop with KasmVNC"
 
-# --------------- labels ---------------
-ARG BUILD_DATE
-ARG VERSION
-LABEL build_version="mywebtop version:- ${VERSION} Build-date:- ${BUILD_DATE}"
-LABEL maintainer="you"
+ENV DEBIAN_FRONTEND=noninteractive \
+    KASM_VNC_PATH=/usr/share/kasmvnc \
+    HOME=/root \
+    LANG=en_US.UTF-8 \
+    LANGUAGE=en_US:en \
+    LC_ALL=en_US.UTF-8 \
+    DISPLAY=:1 \
+    VNC_PORT=8443 \
+    VNC_RESOLUTION=1920x1080 \
+    VNC_COL_DEPTH=24 \
+    MAX_FRAME_RATE=60 \
+    VNCOPTIONS="-PreferBandwidth 0 -DynamicQualityMin 4 -DynamicQualityMax 7 -DLP_ClipSendingAllowed 1 -DLP_ClipReceivingAllowed 1"
 
-# --------------- window manager title shown in browser tab ---------------
-ENV TITLE="Ubuntu KDE"
-
-RUN \
-  echo "**** add custom webtop icon ****" && \
-  curl -fsSL -o /kclient/public/icon.png \
-    https://raw.githubusercontent.com/linuxserver/docker-templates/master/linuxserver.io/img/webtop-logo.png && \
-  \
-  echo "**** update apt cache ****" && \
-  apt-get update && \
-  \
-  echo "**** install KDE Plasma desktop ****" && \
-  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+# Install dependencies and KDE
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    dbus \
+    dbus-x11 \
+    fuse \
+    gzip \
+    locales \
+    mesa-utils \
+    openssl \
+    perl \
+    procps \
+    psmisc \
+    python3 \
+    ssl-cert \
+    sudo \
+    wget \
+    xauth \
+    xdg-utils \
+    xfonts-base \
+    xinit \
+    xorg \
+    # KDE Plasma (minimal but functional)
     kde-plasma-desktop \
     plasma-workspace \
-    kwin-x11 \
+    plasma-nm \
     konsole \
     dolphin \
     kate \
     ark \
-    plasma-nm \
-    plasma-pa \
-    kscreen \
-    plasma-systemmonitor \
-    khotkeys \
-    kinfocenter \
-    breeze \
-    breeze-icon-theme \
-    sddm-theme-breeze \
+    gwenview \
+    okular \
+    pulseaudio \
+    pavucontrol \
     fonts-noto \
-    fonts-noto-cjk \
-    dbus-x11 \
-    x11-xserver-utils \
-    xdg-utils \
-    xdg-user-dirs && \
-  \
-  echo "**** optional apps ****" && \
-  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    chromium-browser \
-    wget \
-    curl \
-    nano \
-    less && \
-  \
-  echo "**** pre-create tmp session dirs with sticky-bit permissions ****" && \
-  mkdir -p /tmp/.ICE-unix /tmp/.X11-unix && \
-  chmod 1777 /tmp/.ICE-unix /tmp/.X11-unix && \
-  \
-  echo "**** cleanup ****" && \
-  apt-get autoclean && \
-  rm -rf /var/lib/apt/lists/* /var/tmp/*
+    fonts-liberation \
+    language-pack-en \
+    && locale-gen en_US.UTF-8 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# add local config / startup files
-COPY root/ /
+# Install KasmVNC
+RUN KASMVNC_VER=$(curl -sX GET "https://api.github.com/repos/kasmtech/KasmVNC/releases/latest" \
+        | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') \
+    && UBUNTU_CODENAME=$(. /etc/os-release && echo "${UBUNTU_CODENAME:-$(lsb_release -cs 2>/dev/null || echo noble)}") \
+    && echo "Installing KasmVNC ${KASMVNC_VER} for ${UBUNTU_CODENAME}" \
+    && wget -qO /tmp/kasmvnc.deb \
+        "https://github.com/kasmtech/KasmVNC/releases/download/v${KASMVNC_VER}/kasmvncserver_${UBUNTU_CODENAME}_${KASMVNC_VER}_amd64.deb" \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends /tmp/kasmvnc.deb \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/kasmvnc.deb
 
-# KasmVNC web UI + audio
-EXPOSE 3000
-EXPOSE 3001
+# Generate self-signed SSL certificate
+RUN mkdir -p /etc/kasmvnc/certs \
+    && openssl req -x509 -nodes -days 3650 -newkey rsa:4096 \
+        -keyout /etc/kasmvnc/certs/self.key \
+        -out /etc/kasmvnc/certs/self.crt \
+        -subj "/C=US/ST=State/L=City/O=KasmVNC/OU=Desktop/CN=localhost" \
+        -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
 
-VOLUME /config
+# Configure KasmVNC
+RUN mkdir -p /root/.vnc
+COPY kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
+
+# Set VNC password (default: "vncpassword" - change via env var VNC_PASSWORD)
+RUN echo "vncpassword" | vncpasswd -u root -w -r 2>/dev/null || true
+
+# Startup script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 8443
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -fk https://localhost:8443/ || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]
