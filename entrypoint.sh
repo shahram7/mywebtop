@@ -90,7 +90,7 @@ rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 || true
 #############################################
 echo "Starting KasmVNC on port 8443 with auth disabled..."
 
-exec vncserver :1 \
+exec kasmvncserver :1 \
   --noauth \
   --skipConfigWizard \
   --skipUserAuth \
