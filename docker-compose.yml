@@ -1,13 +1,24 @@
 services:
-  kde-desktop:
-    build: .
-    image: ubuntu-kde-kasmvnc:local
-    container_name: kde-desktop
+  desktop:
+    image: yourname/yourimage:latest
+    container_name: kasm_desktop
     ports:
       - "8443:8443"
     environment:
-      - VNC_PASSWORD=changeme
+      # - VNC_PASSWORD=changeme
       - VNC_COL_DEPTH=24
       - MAX_FRAME_RATE=60
-    shm_size: '1gb'
+    volumes:
+      - kasm_config:/etc/kasmvnc
+      - kasm_user_config:/root/.config
+      - kasm_vnc:/root/.vnc
+      - kasm_home:/root
     restart: unless-stopped
+    shm_size: '1gb'
+
+
+volumes:
+  kasm_config:
+  kasm_user_config:
+  kasm_vnc:
+  kasm_home:
