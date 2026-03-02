@@ -91,10 +91,17 @@ rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 || true
 #############################################
 echo "Starting KasmVNC on port 8443 with auth disabled..."
 
-exec kasmvncserver :1 \
+# Old
+# exec kasmvncserver :1 \
+#   --noauth --skipConfigWizard --skipUserAuth \
+#   -select-de kde -geometry 1920x1080 -depth "${VNC_COL_DEPTH:-24}" \
+#   -rfbport 8443 -websocketPort 8443 \
+#   -cert /etc/kasmvnc/certs/self.crt -key /etc/kasmvnc/certs/self.key \
+#   -FrameRate "${MAX_FRAME_RATE:-60}" -fg 2>&1
+
+# New (forces “2” into any wizard prompt, then starts)
+{ echo 2; sleep 1; } | exec kasmvncserver :1 \
   --noauth \
-  --skipConfigWizard \
-  --skipUserAuth \
   -select-de kde \
   -geometry 1920x1080 \
   -depth "${VNC_COL_DEPTH:-24}" \
