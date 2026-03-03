@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
@@ -10,21 +10,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     locales dbus dbus-x11 sudo wget curl ca-certificates gnupg2 openssl \
     xauth xorg xinit x11-xserver-utils \
     kde-plasma-desktop plasma-desktop plasma-workspace sddm \
+    kde-config-plasma-desktop kde-standard \
     && locale-gen en_US.UTF-8 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y \
-    plasma-desktop \
-    plasma-workspace \
-    kde-config-plasma-desktop \
-    kde-standard \
-    --no-install-recommends    
-
 # Install KasmVNC from GitHub Releases (auto-detect version & codename)
 RUN KASMVNC_VER=$(curl -s https://api.github.com/repos/kasmtech/KasmVNC/releases/latest \
         | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') \
-    && UBUNTU_CODENAME=$(. /etc/os-release && echo "$UBUNTU_CODENAME") \
+    && UBUNTU_CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME") \
     && echo "Installing KasmVNC ${KASMVNC_VER} for ${UBUNTU_CODENAME}" \
     && wget -qO /tmp/kasmvnc.deb \
         "https://github.com/kasmtech/KasmVNC/releases/download/v${KASMVNC_VER}/kasmvncserver_${UBUNTU_CODENAME}_${KASMVNC_VER}_amd64.deb" \
