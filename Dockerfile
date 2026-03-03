@@ -5,7 +5,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LANGUAGE=en_US:en \
     LC_ALL=en_US.UTF-8
 
-# Install KDE Plasma + runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     locales dbus dbus-x11 sudo wget curl ca-certificates gnupg2 openssl \
     xauth xorg xinit x11-xserver-utils x11-utils \
@@ -14,7 +13,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install KasmVNC from GitHub Releases
 RUN KASMVNC_VER=$(curl -s https://api.github.com/repos/kasmtech/KasmVNC/releases/latest \
         | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') \
     && UBUNTU_CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME") \
@@ -24,7 +22,6 @@ RUN KASMVNC_VER=$(curl -s https://api.github.com/repos/kasmtech/KasmVNC/releases
     && apt-get update && apt-get install -y --no-install-recommends /tmp/kasmvnc.deb \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/kasmvnc.deb
 
-# Remove vncserver wrapper auto-start hooks
 RUN rm -f \
       /lib/systemd/system/kasmvncserver.service \
       /etc/systemd/system/kasmvncserver.service \
@@ -34,16 +31,15 @@ RUN rm -f \
       /etc/profile.d/kasmvnc.sh \
       || true
 
-# Create config directories
+# Patch select-de.sh to a no-op — vncserver calls it unconditionally
+RUN printf '#!/bin/sh\nexit 0\n' > /usr/lib/kasmvncserver/select-de.sh \
+    && chmod +x /usr/lib/kasmvncserver/select-de.sh
+
 RUN mkdir -p /etc/kasmvnc /etc/kasmvnc/certs /root/.vnc
 
-# Copy kasmvnc config
 COPY kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
-
-# Copy entrypoint
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 8443
-
 ENTRYPOINT ["/entrypoint.sh"]
