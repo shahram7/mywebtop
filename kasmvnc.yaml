@@ -1,24 +1,40 @@
+desktop:
+  resolution:
+    width: 1920
+    height: 1080
+  allow_resize: true
+  pixel_depth: 24
+  gpu:
+    hw3d: false
+
 network:
-  protocol: http
+  protocol: https
+  interface: 0.0.0.0
   websocket_port: 8443
+  use_ipv4: true
+  use_ipv6: false
+  udp:
+    public_ip: auto
+    port: auto
+    stun_server: auto
   ssl:
     pem_certificate: /etc/kasmvnc/certs/self.crt
     pem_key: /etc/kasmvnc/certs/self.key
-  udp:
-    public_ip: auto
-
-desktop:
-  allow_resize: true
-
-encoding:
-  max_frame_rate: 60
-  full_frame_updates: 0
-  rect_encoding_mode:
-    min_quality: 4
-    max_quality: 7
+    require_ssl: true
 
 user_session:
-  clipboard: {}
+  new_session_disconnects_existing_exclusive_session: false
+  concurrent_connections_prompt: false
+  idle_timeout: never
 
-logging:
-  level: 30
+keyboard:
+  remap_keys:
+  ignore_numlock: false
+  raw_keyboard: false
+
+pointer:
+  enabled: true
+
+runtime_configuration:
+  allow_client_to_override_kasm_server_settings: true
+  allow_override_standard_vnc_server_settings: true
