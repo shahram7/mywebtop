@@ -44,18 +44,28 @@ if [ ! -f /root/.kasmpasswd ]; then
 fi
 
 #############################################
-# 5. Clean ALL stale X11 locks and sockets
-#    Use :99 to avoid any host display clash
+# 5. Find a free display number
 #############################################
-DISPLAY_NUM=99
-echo "[Init] Cleaning stale locks for display :${DISPLAY_NUM}..."
-rm -f /tmp/.X${DISPLAY_NUM}-lock
-rm -f /tmp/.X11-unix/X${DISPLAY_NUM}
 mkdir -p /tmp/.X11-unix
 chmod 1777 /tmp/.X11-unix
 
+find_free_display() {
+  for n in $(seq 1 200); do
+    # Check both the lock file and the Unix socket
+    if [ ! -f "/tmp/.X${n}-lock" ] && [ ! -S "/tmp/.X11-unix/X${n}" ]; then
+      echo $n
+      return
+    fi
+  done
+  echo "[ERROR] No free display found!" >&2
+  exit 1
+}
+
+DISPLAY_NUM=$(find_free_display)
+echo "[Init] Using display :${DISPLAY_NUM}"
+
 #############################################
-# 6. Launch Xvnc on :99
+# 6. Launch Xvnc on the free display
 #############################################
 echo "[Init] Starting Xvnc on :${DISPLAY_NUM}, websocket 8443, rfb 5901..."
 Xvnc :${DISPLAY_NUM} \
@@ -80,7 +90,6 @@ for i in $(seq 1 30); do
     echo "[Init] Xvnc is ready."
     break
   fi
-  # Bail early if Xvnc already died
   if ! kill -0 $XVNC_PID 2>/dev/null; then
     echo "[ERROR] Xvnc exited prematurely. Log:"
     cat /root/.vnc/Xvnc.log
@@ -91,7 +100,7 @@ for i in $(seq 1 30); do
 done
 
 #############################################
-# 7. Start KDE Plasma against :99
+# 7. Start KDE Plasma
 #############################################
 echo "[Init] Starting KDE Plasma..."
 export DISPLAY=:${DISPLAY_NUM}
