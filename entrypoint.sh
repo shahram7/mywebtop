@@ -49,11 +49,15 @@ fi
 rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 || true
 
 #############################################
-# 6. Launch Xvnc directly
-#    rfbport 5901  = raw VNC (internal only)
-#    websocketPort 8443 = what clients connect to
+# 6. Diagnose what is already on the ports
 #############################################
-echo "[Init] Starting Xvnc on :1, websocket port 8443..."
+echo "[Init] Checking ports before launch..."
+ss -tlnp | grep -E '5901|8443' || echo "[Init] Ports 5901 and 8443 are free."
+
+#############################################
+# 7. Launch Xvnc with verbose logging
+#############################################
+echo "[Init] Starting Xvnc on :1, websocket 8443, rfb 5901..."
 Xvnc :1 \
   -geometry 1920x1080 \
   -depth "${VNC_COL_DEPTH:-24}" \
@@ -64,12 +68,13 @@ Xvnc :1 \
   -FrameRate "${MAX_FRAME_RATE:-60}" \
   -PlainUsers root \
   -SecurityTypes TLSPlain \
-  2>/root/.vnc/Xvnc.log &
+  -Log "*:stderr:100" \
+  2>&1 | tee /root/.vnc/Xvnc.log &
 
 XVNC_PID=$!
 echo "[Init] Xvnc PID: $XVNC_PID"
 
-# Wait for Xvnc socket to be ready
+# Wait for Xvnc socket
 echo "[Init] Waiting for Xvnc to be ready..."
 for i in $(seq 1 20); do
   if [ -S /tmp/.X11-unix/X1 ]; then
@@ -77,10 +82,18 @@ for i in $(seq 1 20); do
     break
   fi
   sleep 1
+  echo "[Init] ...waiting ($i/20)"
 done
 
+# Check if Xvnc actually started
+if ! kill -0 $XVNC_PID 2>/dev/null; then
+  echo "[ERROR] Xvnc exited prematurely. Log:"
+  cat /root/.vnc/Xvnc.log
+  exit 1
+fi
+
 #############################################
-# 7. Start KDE Plasma against :1
+# 8. Start KDE Plasma against :1
 #############################################
 echo "[Init] Starting KDE Plasma..."
 export DISPLAY=:1
@@ -92,5 +105,6 @@ chmod 700 "$XDG_RUNTIME_DIR"
 
 dbus-launch --exit-with-session startplasma-x11 &>/root/.vnc/plasma.log &
 
-echo "[Init] Plasma started. Tailing Xvnc log..."
+echo "[Init] Plasma started. Tailing logs..."
+tail -f /root/.vnc/plasma.log &
 exec tail -f /root/.vnc/Xvnc.log
