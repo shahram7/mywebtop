@@ -43,7 +43,7 @@ rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 2>/dev/null || true
 #    -noxstartup means vncserver starts Xvnc but does NOT try to
 #    launch a DE — we do that ourselves below.
 echo "[Init] Starting KasmVNC via vncserver -noxstartup..."
-vncserver :1 -noxstartup -depth 24 -geometry 1920x1080 -disableBasicAuth 2>&1 | tee /root/.vnc/vncserver-init.log || true
+vncserver :1 -noxstartup -depth 24 -disableBasicAuth 2>&1 | tee /root/.vnc/vncserver-init.log || true
 
 # Wait for the Xvnc display socket to appear
 echo "[Init] Waiting for display :1..."
