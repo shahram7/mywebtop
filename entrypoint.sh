@@ -106,12 +106,17 @@ rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 || true
 
 
 #############################################
-# 9. Launch KasmVNC — no -select-de flag,
-#    xstartup handles KDE directly
+# 9. Launch KasmVNC
+#    -xstartup explicitly tells vncserver to
+#    use our script instead of running
+#    select-de.sh or regenerating xstartup.
+#    We tail the log file to keep the
+#    container alive (replaces broken -fg).
 #############################################
 echo "Starting KasmVNC on port 8443..."
-exec kasmvncserver :1 \
+kasmvncserver :1 \
   --noauth \
+  -xstartup /root/.vnc/xstartup \
   -geometry 1920x1080 \
   -depth "${VNC_COL_DEPTH:-24}" \
   -rfbport 8443 \
@@ -119,5 +124,13 @@ exec kasmvncserver :1 \
   -cert /etc/kasmvnc/certs/self.crt \
   -key /etc/kasmvnc/certs/self.key \
   -FrameRate "${MAX_FRAME_RATE:-60}" \
-  -fg \
   2>&1
+
+# Follow the log to keep the container running
+LOG=$(ls /root/.vnc/*.log 2>/dev/null | head -1)
+if [ -n "$LOG" ]; then
+  exec tail -f "$LOG"
+else
+  # Fallback: wait for the Xvnc process
+  wait
+fi
