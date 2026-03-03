@@ -6,7 +6,7 @@ desktop:
   pixel_depth: 24
   gpu:
     hw3d: false
-
+    
 network:
   protocol: http
   interface: 0.0.0.0
