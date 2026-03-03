@@ -8,13 +8,13 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Install KDE Plasma + runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     locales dbus dbus-x11 sudo wget curl ca-certificates gnupg2 openssl \
-    xauth xorg xinit x11-xserver-utils \
+    xauth xorg xinit x11-xserver-utils x11-utils \
     kde-plasma-desktop kde-standard sddm \
     && locale-gen en_US.UTF-8 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install KasmVNC from GitHub Releases (auto-detect version & codename)
+# Install KasmVNC from GitHub Releases
 RUN KASMVNC_VER=$(curl -s https://api.github.com/repos/kasmtech/KasmVNC/releases/latest \
         | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') \
     && UBUNTU_CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME") \
@@ -24,39 +24,21 @@ RUN KASMVNC_VER=$(curl -s https://api.github.com/repos/kasmtech/KasmVNC/releases
     && apt-get update && apt-get install -y --no-install-recommends /tmp/kasmvnc.deb \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/kasmvnc.deb
 
-# Remove any auto-start hooks from systemd, Xsession, profile, old vnc wrappers
+# Remove vncserver wrapper auto-start hooks
 RUN rm -f \
-      /usr/bin/vncserver /bin/vncserver /usr/local/bin/vncserver /etc/alternatives/vncserver \
       /lib/systemd/system/kasmvncserver.service \
       /etc/systemd/system/kasmvncserver.service \
       /etc/init.d/kasmvncserver \
       /etc/X11/Xsession.d/99kasmvnc \
       /etc/xdg/autostart/kasmvnc.desktop \
       /etc/profile.d/kasmvnc.sh \
-      /usr/lib/kasmvnc/kasmvncdesktop \
-      /usr/bin/kasmvncserver-root \
       || true
 
 # Create config directories
 RUN mkdir -p /etc/kasmvnc /etc/kasmvnc/certs /root/.vnc
 
-# Self-signed TLS cert for websocket TLS (Cloudflare-compatible)
-RUN openssl req -x509 -nodes -days 3650 -newkey rsa:4096 \
-    -keyout /etc/kasmvnc/certs/self.key \
-    -out /etc/kasmvnc/certs/self.crt \
-    -subj "/C=US/ST=NA/L=NA/O=KasmVNC/OU=Desktop/CN=localhost" \
-    -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
-
-# Copy your validated kasmvnc.yaml (no unsupported keys)
+# Copy kasmvnc config
 COPY kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
-
-# Pre-create users.conf → prevents ANY wizard from appearing ever
-RUN cat >/etc/kasmvnc/users.conf <<EOF
-users:
-  - username: root
-    permissions:
-      - write
-EOF
 
 # Copy entrypoint
 COPY entrypoint.sh /entrypoint.sh
