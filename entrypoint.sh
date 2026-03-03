@@ -87,11 +87,16 @@ chmod +x /root/.vnc/xstartup
 
 
 #############################################
-# 7. Disable VNC password authentication
+# 7. Pre-create .kasmpasswd so the first-run
+#    user wizard never appears.
+#    -w = write perms, -o = owner perms,
+#    --noauth means the password is never
+#    actually checked at login.
 #############################################
-echo "[Init] Disabling VNC password authentication..."
-touch /root/.vnc/passwd
-chmod 600 /root/.vnc/passwd
+echo "[Init] Pre-creating KasmVNC user to suppress wizard..."
+if [ ! -f /root/.kasmpasswd ]; then
+  printf 'headless\nheadless\n' | kasmvncpasswd -u root -w -o 2>/dev/null || true
+fi
 
 
 #############################################
