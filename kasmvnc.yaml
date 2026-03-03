@@ -8,7 +8,7 @@ desktop:
     hw3d: false
 
 network:
-  protocol: https
+  protocol: http
   interface: 0.0.0.0
   websocket_port: 8443
   use_ipv4: true
