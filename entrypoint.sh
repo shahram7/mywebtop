@@ -44,21 +44,21 @@ if [ ! -f /root/.kasmpasswd ]; then
 fi
 
 #############################################
-# 5. Clean stale X11 locks
+# 5. Clean ALL stale X11 locks and sockets
+#    Use :99 to avoid any host display clash
 #############################################
-rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 || true
+DISPLAY_NUM=99
+echo "[Init] Cleaning stale locks for display :${DISPLAY_NUM}..."
+rm -f /tmp/.X${DISPLAY_NUM}-lock
+rm -f /tmp/.X11-unix/X${DISPLAY_NUM}
+mkdir -p /tmp/.X11-unix
+chmod 1777 /tmp/.X11-unix
 
 #############################################
-# 6. Diagnose what is already on the ports
+# 6. Launch Xvnc on :99
 #############################################
-echo "[Init] Checking ports before launch..."
-ss -tlnp | grep -E '5901|8443' || echo "[Init] Ports 5901 and 8443 are free."
-
-#############################################
-# 7. Launch Xvnc with verbose logging
-#############################################
-echo "[Init] Starting Xvnc on :1, websocket 8443, rfb 5901..."
-Xvnc :1 \
+echo "[Init] Starting Xvnc on :${DISPLAY_NUM}, websocket 8443, rfb 5901..."
+Xvnc :${DISPLAY_NUM} \
   -geometry 1920x1080 \
   -depth "${VNC_COL_DEPTH:-24}" \
   -rfbport 5901 \
@@ -68,35 +68,33 @@ Xvnc :1 \
   -FrameRate "${MAX_FRAME_RATE:-60}" \
   -PlainUsers root \
   -SecurityTypes TLSPlain \
-  -Log "*:stderr:100" \
-  2>&1 | tee /root/.vnc/Xvnc.log &
+  2>/root/.vnc/Xvnc.log &
 
 XVNC_PID=$!
 echo "[Init] Xvnc PID: $XVNC_PID"
 
-# Wait for Xvnc socket
+# Wait for Xvnc Unix socket to appear
 echo "[Init] Waiting for Xvnc to be ready..."
-for i in $(seq 1 20); do
-  if [ -S /tmp/.X11-unix/X1 ]; then
+for i in $(seq 1 30); do
+  if [ -S /tmp/.X11-unix/X${DISPLAY_NUM} ]; then
     echo "[Init] Xvnc is ready."
     break
   fi
+  # Bail early if Xvnc already died
+  if ! kill -0 $XVNC_PID 2>/dev/null; then
+    echo "[ERROR] Xvnc exited prematurely. Log:"
+    cat /root/.vnc/Xvnc.log
+    exit 1
+  fi
   sleep 1
-  echo "[Init] ...waiting ($i/20)"
+  echo "[Init] ...waiting ($i/30)"
 done
 
-# Check if Xvnc actually started
-if ! kill -0 $XVNC_PID 2>/dev/null; then
-  echo "[ERROR] Xvnc exited prematurely. Log:"
-  cat /root/.vnc/Xvnc.log
-  exit 1
-fi
-
 #############################################
-# 8. Start KDE Plasma against :1
+# 7. Start KDE Plasma against :99
 #############################################
 echo "[Init] Starting KDE Plasma..."
-export DISPLAY=:1
+export DISPLAY=:${DISPLAY_NUM}
 export XDG_RUNTIME_DIR=/tmp/runtime-root
 export XDG_SESSION_TYPE=x11
 export DESKTOP_SESSION=plasma
