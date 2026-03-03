@@ -49,15 +49,15 @@ fi
 rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 || true
 
 #############################################
-# 6. Launch Xvnc directly (bypasses the
-#    vncserver Perl wrapper and all its
-#    DE-detection / wizard logic entirely)
+# 6. Launch Xvnc directly
+#    rfbport 5901  = raw VNC (internal only)
+#    websocketPort 8443 = what clients connect to
 #############################################
-echo "[Init] Starting Xvnc on :1 port 8443..."
+echo "[Init] Starting Xvnc on :1, websocket port 8443..."
 Xvnc :1 \
   -geometry 1920x1080 \
   -depth "${VNC_COL_DEPTH:-24}" \
-  -rfbport 8443 \
+  -rfbport 5901 \
   -websocketPort 8443 \
   -cert /etc/kasmvnc/certs/self.crt \
   -key  /etc/kasmvnc/certs/self.key \
@@ -69,10 +69,10 @@ Xvnc :1 \
 XVNC_PID=$!
 echo "[Init] Xvnc PID: $XVNC_PID"
 
-# Wait for Xvnc to be ready
+# Wait for Xvnc socket to be ready
 echo "[Init] Waiting for Xvnc to be ready..."
 for i in $(seq 1 20); do
-  if [ -S /tmp/.X11-unix/X1 ] || xdpyinfo -display :1 >/dev/null 2>&1; then
+  if [ -S /tmp/.X11-unix/X1 ]; then
     echo "[Init] Xvnc is ready."
     break
   fi
